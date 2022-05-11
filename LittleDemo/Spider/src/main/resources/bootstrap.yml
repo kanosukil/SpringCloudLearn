@@ -1,0 +1,12 @@
+server:
+  port: 8802
+spring:
+  application:
+    name: SpiderForData
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8800
+      config:
+        group: Configuration_Group
+        name: spider-config
+        file-extension: yml

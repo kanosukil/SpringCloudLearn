@@ -1,0 +1,9 @@
+server:
+  port: 8820
+spring:
+  application:
+    name: HYSTRIX
+  cloud:
+    consul:
+      host: localhost
+      port: 8500

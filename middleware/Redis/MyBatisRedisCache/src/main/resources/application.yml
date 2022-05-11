@@ -1,0 +1,27 @@
+server:
+  port: 8888
+  servlet:
+    context-path: /redisCache
+spring:
+  application:
+    name: RedisCache
+  redis:
+    host: 172.29.170.84
+    port: 6379
+    database: 0
+    password: 13131CAHlhb
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/rediscache?characterEncoding=UTF-8
+    username: vhbin
+    password: 13131CAHlhb
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.learn.redis.entity
+logging:
+  level:
+    com:
+      learn:
+        redis:
+          dao: debug

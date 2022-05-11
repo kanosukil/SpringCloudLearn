@@ -1,0 +1,12 @@
+server:
+  port: 8821
+spring:
+  application:
+    name: OPENFEIGNHYSTRIX
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+feign:
+  hystrix:
+    enabled: true

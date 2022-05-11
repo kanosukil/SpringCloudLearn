@@ -1,0 +1,12 @@
+server:
+  port: 8803
+spring:
+  application:
+    name: ElasticSearch
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8800
+      config:
+        group: Configuration_Group
+        name: elasticsearch-config
+        file-extension: yml

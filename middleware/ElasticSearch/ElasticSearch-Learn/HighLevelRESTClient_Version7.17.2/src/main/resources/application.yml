@@ -1,0 +1,8 @@
+server:
+  port: 8802
+spring:
+  application:
+    name: ES_HIGHLEVELRESTCLIENT
+  elasticsearch:
+    username: VHBin
+    password: 2000Lhb1226

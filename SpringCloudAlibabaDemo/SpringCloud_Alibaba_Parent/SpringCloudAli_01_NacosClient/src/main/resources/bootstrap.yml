@@ -1,0 +1,8 @@
+spring:
+  cloud:
+    nacos:
+      server-addr: nginx:80
+      config:
+        group: Configuration_Group
+        name: nacosclient-dev
+        file-extension: yml

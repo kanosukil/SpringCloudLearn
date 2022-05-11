@@ -1,0 +1,14 @@
+server:
+  port: 8082
+# 服务名
+spring:
+  application:
+    name: CONSULCLIENT
+# consul server 服务地址
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      discovery:
+        service-name: CONSULCLIENT # 默认 ${spring.application.name} 指定当前服务注册名
+        register-health-check: true # 健康检查开关 默认 开(true)

@@ -1,0 +1,8 @@
+server:
+  port: 8801
+spring:
+  application:
+    name: ES_JAVAAPI
+  elasticsearch:
+    username: VHBin
+    password: 2000Lhb1226

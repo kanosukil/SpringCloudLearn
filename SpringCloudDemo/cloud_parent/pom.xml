@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>pom</packaging>
+    <modules>
+        <module>SpringCloud_01_EurekaServer</module>
+        <module>SpringCloud_02_EurekaClient</module>
+        <module>SpringCloud_03_ConsulClient</module>
+        <module>SpringCloud_04_Users</module>
+        <module>SpringCloud_05_Orders</module>
+        <module>SpringCloud_06_Categorys</module>
+        <module>SpringCloud_07_Products</module>
+        <module>SpringCloud_08_HystrixUsage</module>
+        <module>SpringCloud_09_OpenFeignHystrix</module>
+        <module>SpringCloud_10_HystrixDashBoard</module>
+        <module>SpringCloud_11_Gateway</module>
+        <module>SpringCloud_12_ConfigServer</module>
+        <module>SpringCloud_13_ConfigClient</module>
+    </modules>
+    <!--继承 SpringBoot 的父项目-->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.4.13</version>
+    </parent>
+    <groupId>com.cloud.learn</groupId>
+    <artifactId>cloud_parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>15</maven.compiler.source>
+        <maven.compiler.target>15</maven.compiler.target>
+        <spring.cloud-version>2020.0.3</spring.cloud-version>
+    </properties>
+
+    <!--维护版本-->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring.cloud-version}</version>
+                <type>pom</type> <!--父版本pom类型(只能继承一个Module) 即将自己写的cloud与官方的集成,达成子项目只能继承一个的目的-->
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+</project>

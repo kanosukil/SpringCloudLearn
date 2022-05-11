@@ -1,0 +1,23 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: MessageSender
+  cloud:
+    stream:
+      binders:
+        MS:
+          type: rabbit
+          environment:
+            spring:
+              rabbitmq:
+                address: localhost:5672
+                username: guest
+                password: guest
+                virtual-host: /
+      bindings:
+        output:
+          destination: rabbit_output
+          default-binder: MS
+          group: message_out
+

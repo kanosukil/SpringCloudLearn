@@ -1,0 +1,33 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: MessageReceiver
+  cloud:
+    stream:
+      binders:
+        MS:
+          type: rabbit
+          environment:
+            spring:
+              rabbitmq:
+                address: localhost:5672
+                username: guest
+                password: guest
+                virtual-host: /
+      bindings:
+        input:
+          destination: rabbit_output
+          default-binder: MS
+          group: message_out
+          consumer:
+            concurrency: 1
+      rabbit:
+        bindings:
+          input:
+            consumer:
+              requeue-rejected: false
+              acknowledge-mode: MANUAL
+              recovery-interval: 3000
+              durable-subscription: true
+              max-concurrency: 5

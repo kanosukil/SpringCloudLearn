@@ -1,0 +1,24 @@
+spring:
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+    config:
+      fail-fast: true
+      discovery:
+        server-id: CONFIGSERVER
+        enabled: true
+      label: master
+      name: configclient
+      profile: prod
+    rabbitmq:
+      host: localhost
+      port: 5672
+      username: test
+      password: 123
+      virtual-host: test
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

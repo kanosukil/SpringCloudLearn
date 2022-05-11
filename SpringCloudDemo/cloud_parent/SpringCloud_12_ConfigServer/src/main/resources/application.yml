@@ -1,0 +1,22 @@
+server:
+  port: 8840
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+spring:
+  application:
+    name: CONFIGSERVER
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://gitee.com/lvhaibin/learn-spring-cloud-config.git
+          default-label: master
+          basedir: D:/code/Temp
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest

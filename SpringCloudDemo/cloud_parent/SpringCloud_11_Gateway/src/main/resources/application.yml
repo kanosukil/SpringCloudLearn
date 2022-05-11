@@ -1,0 +1,49 @@
+server:
+  port: 8830
+spring:
+  application:
+    name: GATEWAY
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+    gateway:
+      routes:
+        - id: user_router
+          #          uri: http://localhost:8801
+          uri: lb://USERS
+          predicates:
+            - Path=/user/**
+            - RemoteAddr=192.168.0.1/16
+        - id: order_router
+          #          uri: http://localhost:8802
+          uri: lb://ORDERS
+          predicates:
+            - Path=/order/**
+        - id: category_router
+          #          uri: http://localhost:8810
+          uri: lb://CATEGORY
+          predicates:
+            - Path=/category/**
+        - id: product_router
+          #          uri: http://localhost:8811
+          uri: lb://PRODUCT
+          predicates:
+            - Path=/product/**
+        - id: hystrix_router
+          #          uri: http://localhost:8820
+          uri: lb://HYSTRIX
+          predicates:
+            - Path=/hystrix/**
+          filters:
+            - AddRequestParameter=id, -1
+#        - id: openfeignhystrix_router
+##          uri: http://localhost:8821
+#          uri: lb://OPENFEIGNHYSTRIX
+#          predicates:
+#            - Path=/ofh/**
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

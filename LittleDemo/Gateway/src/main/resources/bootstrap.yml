@@ -1,0 +1,12 @@
+server:
+  port: 8008
+spring:
+  application:
+    name: Gateway
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8800
+      config:
+        group: Configuration_Group
+        name: gateway-config
+        file-extension: yml
