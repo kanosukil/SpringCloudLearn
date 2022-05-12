@@ -17,4 +17,6 @@ public interface UserService {
     int delete(String name);
 
     int updateByName(User user);
+
+    List<User> getByName(String name);
 }

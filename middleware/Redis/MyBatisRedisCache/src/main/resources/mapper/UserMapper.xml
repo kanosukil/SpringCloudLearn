@@ -25,4 +25,10 @@
             job=#{job}
         where name = #{name};
     </update>
+
+    <select id="getByName" parameterType="string" resultType="user">
+        select name, age, job
+        from user
+        where name = #{name};
+    </select>
 </mapper>

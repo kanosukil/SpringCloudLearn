@@ -1857,6 +1857,20 @@
    >
    >   > 具体设置应根据具体业务安排
 
+### 4. SpringBoot 操作哨兵机制下的 Redis & 操作 Redis 集群
+
+#### SpringBoot 操作哨兵 Redis
+
+> <a href="#SpringBootSentinel">Learn</a>
+
+#### SpringBoot 操作 Redis 集群
+
+> <a href="#SpringBootRedis">Learn</a>
+
+#### SpringBoot 使用 Redis 实现 分布式 Session 管理
+
+> <a href="#distribution">Learn</a>
+
 ## Redis 配置文件
 
 > Redis.conf
@@ -2608,6 +2622,10 @@ Reading messages... (press Ctrl-C to quit)
   # N 小于大多数(一半以上)时, failover 的执行需要大多数 Sentinel 授权.
   # N 大于大多数时, failover 的执行需要比 N 更多的 Sentinel 授权才可行.
   
+  
+  # bind 没有显式表现, 默认为 bind 127.0.0.1 没有开启远程连接
+  # 需要远程连接 Sentinel 则需要修改 bind
+  bind * -::*
   # 默认配置
   protected-mode no # 保护模式
   port 26379 # 端口
@@ -2673,15 +2691,70 @@ Reading messages... (press Ctrl-C to quit)
   >
   > **注**: 添加新的 Sentinel 到一直列表中之前, Sentinel 先检查**列表中是否包含和需要添加的 Sentinel 的 ip:port 相同的 Sentinel**; 若有 Sentinel 将先移除列表中查找到的 Sentinel, 再添加新的 Sentinel; 没有这直接添加.
 
-+ 优缺
+#### 优缺点
 
-  + 优点: 
-    1. 哨兵集群: 基于主从复制
-    2. 主从可切换, 故障可转移
-    3. 主从切换自动进行
-  + 缺点: 
-    1. Redis 在线扩容麻烦
-    2. 配置繁多
++ 优点: 
+  1. 哨兵集群: 基于主从复制
+  2. 主从可切换, 故障可转移
+  3. 主从切换自动进行
+  
++ 缺点: 
+  1. Redis 在线扩容麻烦
+  
+  2. 配置繁多
+  
+  3. **不能解决单节点的并发压力问题**
+  
+  4. **不能解决单节点的物理上限问题**
+  
+     > 主节点只有一个, 随着主节点的不断处理请求, 主节点的压力会越来越大, 主节点的内存占用也将越来越大, 甚至可能造成内存溢出的现象(开启 AOF 持久化也将导致存储在磁盘上的 AOF 文件越来越大)
+     >
+     > + 对内存要求高
+     > + 对磁盘要求高
+
+#### SpringBoot 操作哨兵机制下的 Redis <a id="SpringBootSentinel"></a>
+
+```properties
+# redis 单节点连接
+spring.redis.host=redis-host
+spring.redis.port=redis-port
+spring.redis.database=0
+# redis Sentinel 主从复制架构连接
+spring.redis.sentinel.master=Sentinel 监测的 master 名(Sentinel.conf内自定义的)
+spring.redis.sentinel.nodes=sentinel-ip:sentinel-port (多个使用 ',' 隔开; yaml 使用 List 形式表示)
+# 同时需要 Sentinel 节点使用 bind 允许远程连接
+
+# yml 配置
+redis:
+    sentinel:
+      master: mymaster
+      nodes:
+        - 172.29.170.84:6388
+        - 172.29.170.84:6387
+        - 172.29.170.84:6386
+        - 172.29.170.84:6385
+        - 172.29.170.84:6384
+      password: 13131CAHlhb
+    database: 0
+    password: 13131CAHlhb
+    timeout: 10000
+```
+
++ 哨兵机制的配置链接
+
+  > + 出现 RedisConnectionException: DENIED Redis is running in protected ... 异常信息则表示 Sentinel 需要使用 **bind** 配置运行远程连接.
+  >
+  > + docker 部署的 Redis-Sentinel 集群 
+  >
+  >   1. Redis 主从需要使用: `replica-announce-ip docker分配的ip`
+  >
+  >      > 该指令意思是: 向外声明自己的 ip 为...
+  >
+  >   2. Sentinel 需要使用: `sentinel announce-ip docker分配的ip` & `sentinel monitor mymaster docker分配的ip 6379 2`
+  >
+  >      > sentinel 默认向远端发送 master 的 ip 为 `sentinel monitor ` 设置的 ip, 而后故障转移后的主机 ip 即为主从即通过 `replica-announce-ip` 声明的 ip
+  >
+  >      **使用 WSL2 部署需要每次重启后修改上述的 ip.**
 
 #### Sentinel 可接收的命令
 
@@ -2720,6 +2793,554 @@ SENTINEL SET <name> <option> <value> # 修改 Sentinel 的配置文件 (一次�
 + Redis Sentinel 非常依赖系统时间, 系统时间一旦被修改/系统繁忙/进程堵塞等系统稳定性下降状态, Sentinel 将出现运行不正常的状态.
 + 系统稳定性下降时, Sentinel 进入 TILT 模式(Sentinel 可进入的 保护模式), Sentinel 继续监控, 但不会做其他的任何动作(例: 不回应 is-master-down-by-addr 命令), 原因: 进入 TILT 模式的 Sentinel 检测失效节点的能力不被信任.
 + 系统恢复正常并持续至少 30s 后, Sentinel 退出 TITL 模式.
+
+## Redis 集群操作
+
++ 解决问题:
+
+  1. 故障的自动转移
+
+  2. 单节点的并发压力
+
+  3. 单节点的物理上限
+
+     > 内存 & 磁盘
+
++ Redis 3.0 后开始支持 Cluster 集群
+
++ 特性
+
+  + Redis 集群节点的自动发现
+  + 支持 Slave-Master 的选举 容错
+  + 支持在线分片 (reshard 重新分配 slot)
+  + ...
+
+![image-20220511170149336](Images/RedisCluster.png)
+
++ Redis 的心跳检测: ping--pong 机制.
+
+  > ping 请求 接收到 pong 证明节点还活着.
+
+   Redis 集群中的每一个节点之间定期做心跳检测.
+
+  > Redis 集群中的数据交换也跟心跳机制一同传递.
+  >
+  > 内部使用 二进制协议 优化传递速度和带宽
+
++ 节点是否宕机, 由集群中的超过半数以上的节点检测宕机到了才确认宕机(类似 Sentinel 的投票选举机制)
+
++ 客户端和 Redis 集群的连接为 Client 和 Redis 节点直连
+
+  > 即 Client 和 Redis 节点之间没有 Proxy 代理层, 不用 连接 Redis 中的所有节点, 只需要连接任意一个即可
+
++ Redis-Cluster 将所有 Redis 物理节点(向外提供服务的节点 = Master 节点)映射到 0~16383 个 Slot 槽/哈希槽 (总共有 16384 个槽)上<a id="hash"></a>
+
+  > cluster 负责维护 node 
+  >
+  > node 负责维护 slot
+  >
+  > slot 负责维护 value
+  >
+  > + Cluster 维护的每个物理节点都有其自己的从节点, 即 **每一个(物理)节点都实现了主从复制**
+  >
+  > + Redis 集群会将总共 16384 个槽**尽可能的平均分配**(使用一致性哈希算法)给集群中的所有物理节点
+  >
+  >   > **每个物理节点必须至少有一个 slot 哈希槽**, 因此有 16385 个及以上物理节点的 Redis Cluster 创建不了.
+  >   >
+  >   > 因此 Slot 的数量限制了 Redis Cluster 的最大物理节点数
+
++ 客户端对 Redis Cluster 的任何操作的 KEY 都需要经过 CRC16 算法
+
+  > CRC16 算法:
+  >
+  > 1. Redis 集群下所有的 key 都进行 CRC16 计算, 结果都在 0~16383 之间.
+  > 2. 同一个 key 的多次 CRC16 计算结果始终一致
+  > 3. **不同的 key 进行 CRC16 计算, 结果可能相同**
+  >
+  > 因此 Redis Cluster 分配了 0~16383 个 slot 槽
+  >
+  > 因此 Client 可以连接集群中的任意节点(client 的请求根据 CRC16 计算后, 发送到 Redis 集群, Redis 集群会根据 CRC16 的结果重定向请求到指定的物理节点)
+
+  + client 每来一个 key 经过 CRC16 计算,根据结果操作拥有指定 slot 的 node 
+
+    > 因此 Redis 集群中的每个物理节点的数据并不共享
+
+  + 物理节点宕机, 顶替的从节点将会接管 slot 和其他功能
+
++ 在线分片 / 重新分片 reshard 
+
+  > 动态的向集群中添加或减少物理节点时,必将导致 slot 槽的重新分配, 因此有 Reshard.
+
+  + 怎么分配 slot 由集群搭建者决定.
+  + Redis 集群根据 集群搭建者的决定执行 slot 的重新分配
+  + **slot 的分配也将把 slot 管理的 value 一并分配**
+
+### Redis 集群搭建
+
+> 需要安装 Ruby 环境 (?) 5.0 以前使用 Redis 源码中 src 目录下的 redis-trib.rb 脚本, 但是需要准备 Ruby 的环境.参考以下:
+>
+> [Redis集群搭建_殇的不悔x的博客-CSDN博客](https://blog.csdn.net/qq_30659573/article/details/124678842)
+>
+> 5.0 以后可以通过: `redis-cli --cluster create [ip]:[port] ... --cluster-replicas 1` 客户端的参数创建集群.
+
+#### 配置文件修改(主要的配置):
+
+```bash
+bind * -::* # 运行远程连接 旧版本 0.0.0.0
+port 7000 ~ 7006 # 尽量不要使用 6379
+daemonize yes # 开启守护进程 后台运行(生产环境要开启)[docker内不能开启]
+cluster-enabled yes # 开启集群 默认关闭
+cluster-config-file nodes-portxxxx.conf # 集群的配置文件
+cluster-node-timeout 5000 # 集群节点连接超时时间
+dbfilename dump-xxxx.rdb # 输出的文件(pid 文件, logs 文件...)最好使用端口号标识
+appendonly yes # 推荐开启 AOF 持久化(尽可能的保存数据)
+appendfilename appendonly-xxxx.aof # 端口号标识输出的文件
+
+# 推荐将 redis.conf 的默认配置配到集群的配置文件中
+# 下列为一个 DEMO
+port 7000
+bind * -::*
+pidfile /pid/redis-7000.pid
+logfile /logs/redis-7000.logs
+daemonize no
+cluster-enabled yes
+cluster-config-file node-7000.conf
+cluster-node-timeout 5000
+dbfilename dump-7000.rdb
+dir /data
+appendonly yes
+appendfilename appendonly-7000.aof
+
+protected-mode yes
+tcp-backlog 511
+loglevel notice
+timeout 0
+tcp-keepalive 300
+databases 16
+always-show-logo no
+set-proc-title yes
+proc-title-template "{title} {listen-addr} {server-mode}"
+save 3600 1
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+rdb-del-sync-files no
+
+replica-serve-stale-data yes
+replica-read-only yes
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+repl-diskless-load disabled
+repl-disable-tcp-nodelay no
+replica-priority 100
+
+acllog-max-len 128
+maxclients 100
+
+lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+replica-lazy-flush no
+lazyfree-lazy-user-del no
+lazyfree-lazy-user-flush no
+oom-score-adj no
+oom-score-adj-values 0 200 800
+disable-thp yes
+
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+aof-load-truncated yes
+aof-use-rdb-preamble yes
+lua-time-limit 5000
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+latency-monitor-threshold 0
+notify-keyspace-events ""
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+list-max-ziplist-size -2
+list-compress-depth 0
+set-max-intset-entries 512
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+hll-sparse-max-bytes 3000
+stream-node-max-bytes 4096
+stream-node-max-entries 100
+activerehashing yes
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+hz 10
+dynamic-hz yes
+aof-rewrite-incremental-fsync yes
+rdb-save-incremental-fsync yes
+jemalloc-bg-thread yes
+```
+
+#### 以 集群 模式启动节点, 在使用 命令 将以集群形式启动的 Redis 节点 组成集群.
+
+> 5.0 以前通过 `./redis-trib.rb create --replicas N [ip]:[port]` 创建集群
+>
+> N 表示每个主节点有几个从节点
+>
+> > ./redis-trib.rb check [ip]:[port] # 集群中的任意一个即可 检测集群状态
+>
+> 5.0 以后通过  `redis-cli --cluster create [ip]:[port] ... --cluster-replicas 1` 创建集群
+>
+> 参数: --cluster-replicas 1 表示 每个主节点有1个从节点
+
+```bash
+>>> Performing hash slots allocation on 6 nodes...
+Master[0] -> Slots 0 - 5460
+Master[1] -> Slots 5461 - 10922
+Master[2] -> Slots 10923 - 16383
+Adding replica 172.28.0.15:6379 to 172.28.0.11:6379
+Adding replica 172.28.0.16:6379 to 172.28.0.12:6379
+Adding replica 172.28.0.14:6379 to 172.28.0.13:6379
+M: cfb09d104f563d5dea870437cf73fac266b69a30 172.28.0.11:6379
+   slots:[0-5460] (5461 slots) master
+M: 47d28c2cc92ce7fafbe09b14d521a35e56a2c02c 172.28.0.12:6379
+   slots:[5461-10922] (5462 slots) master
+M: be4034133574260765165beac5fd1edacb63a2bd 172.28.0.13:6379
+   slots:[10923-16383] (5461 slots) master
+S: 74685c90c5aebdc8a035d288c962e22f98e994e8 172.28.0.14:6379
+   replicates be4034133574260765165beac5fd1edacb63a2bd
+S: 96b4185cc40b532b144b2ac3e2fe7213e7c13a50 172.28.0.15:6379
+   replicates cfb09d104f563d5dea870437cf73fac266b69a30
+S: edd2e12510d921be2193df5b461033fc0f465144 172.28.0.16:6379
+   replicates 47d28c2cc92ce7fafbe09b14d521a35e56a2c02c
+Can I set the above configuration? (type 'yes' to accept): yes # 需要确认按照分配的 slots 创建集群
+>>> Nodes configuration updated
+>>> Assign a different config epoch to each node
+>>> Sending CLUSTER MEET messages to join the cluster
+Waiting for the cluster to join
+....
+>>> Performing Cluster Check (using node 172.28.0.11:6379)
+M: cfb09d104f563d5dea870437cf73fac266b69a30 172.28.0.11:6379
+   slots:[0-5460] (5461 slots) master
+   1 additional replica(s)
+S: 96b4185cc40b532b144b2ac3e2fe7213e7c13a50 172.28.0.15:6379
+   slots: (0 slots) slave
+   replicates cfb09d104f563d5dea870437cf73fac266b69a30
+S: edd2e12510d921be2193df5b461033fc0f465144 172.28.0.16:6379
+   slots: (0 slots) slave
+   replicates 47d28c2cc92ce7fafbe09b14d521a35e56a2c02c
+M: be4034133574260765165beac5fd1edacb63a2bd 172.28.0.13:6379
+   slots:[10923-16383] (5461 slots) master
+   1 additional replica(s)
+M: 47d28c2cc92ce7fafbe09b14d521a35e56a2c02c 172.28.0.12:6379
+   slots:[5461-10922] (5462 slots) master
+   1 additional replica(s)
+S: 74685c90c5aebdc8a035d288c962e22f98e994e8 172.28.0.14:6379
+   slots: (0 slots) slave
+   replicates be4034133574260765165beac5fd1edacb63a2bd
+[OK] All nodes agree about slots configuration.
+>>> Check for open slots...
+>>> Check slots coverage...
+[OK] All 16384 slots covered. # 所有的 16384 个哈希槽都被分配
+```
+
+> 不论哪个版本的 redis 集群的创建都是一样的流程
+
++ 使用 `redis-cli` : `redis-cli -c -h 192.168.8.12 -p 7002`
+
+  > 参数 -c 启动集群的客户端. CRC16计算后, 将进行重定向(重定向到存储 value 的物理节点上)
+  >
+  > ```bash
+  > redis-cli -c -h 192.168.8.12 -p 7002
+  > 192.168.8.12:7002> get age
+  > -> Redirected to slot [741] located at 192.168.8.10:7000
+  > "123"
+  > 192.168.8.10:7000>
+  > ```
+  >
+  > 如果像单节点一样使用: 
+  >
+  > ```bash
+  > redis-cli -h 192.168.8.12 -p 7002
+  > 192.168.8.12:7002> ping
+  > PONG
+  > 192.168.8.12:7002> set age 321
+  > (error) MOVED 741 192.168.8.10:7000
+  > 192.168.8.12:7002>
+  > ```
+
++ 查看信息
+
+  > 在 cli 内使用: `cluster info # 该节点在集群中的信息` & `cluster nodes # 集群节点信息`
+
+  ```bash
+  192.168.8.10:7000> cluster info # 该节点在集群中的信息
+  cluster_state:ok
+  cluster_slots_assigned:16384
+  cluster_slots_ok:16384
+  cluster_slots_pfail:0
+  cluster_slots_fail:0
+  cluster_known_nodes:6
+  cluster_size:3
+  cluster_current_epoch:6
+  cluster_my_epoch:1
+  cluster_stats_messages_ping_sent:1722
+  cluster_stats_messages_pong_sent:1761
+  cluster_stats_messages_sent:3483
+  cluster_stats_messages_ping_received:1761
+  cluster_stats_messages_pong_received:1722
+  cluster_stats_messages_received:3483
+  192.168.8.10:7000> cluster nodes # 集群节点信息
+  b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005@17005 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652277291000 2 connected
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 slave f5f2e5452aac3fdfde349ddbdeb49b37766e4957 0 1652277292379 1 connected
+  f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000@17000 myself,master - 0 1652277291000 1 connected 0-5460
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652277291375 2 connected 5461-10922
+  5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003@17003 slave 0bfe11ed5ac5dd18d975644dad819aafaa983521 0 1652277291000 3 connected
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 master - 0 1652277292000 3 connected 10923-16383
+  ```
+
++ 宕掉一个主节点测试
+
+  ```bash
+  192.168.8.12:7002> cluster nodes
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 myself,master - 0 1652277564000 3 connected 10923-16383
+  b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005@17005 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652277566117 2 connected
+  f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000@17000 master,fail - 1652277495599 1652277493000 1 connected # 宕机的主节点
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652277566000 2 connected 5461-10922
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 master - 0 1652277566519 7 connected 0-5460 # 顶替宕机的节点
+  5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003@17003 slave 0bfe11ed5ac5dd18d975644dad819aafaa983521 0 1652277567123 3 connected
+  ```
+
+  ```bash
+  192.168.8.12:7002> cluster nodes
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 myself,master - 0 1652277790000 3 connected 10923-16383
+  b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005@17005 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652277789514 2 connected
+  f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000@17000 slave ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 0 1652277790518 7 connected # 恢复的主节点变为了现任主节点的从节点
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652277790000 2 connected 5461-10922
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 master - 0 1652277790619 7 connected 0-5460
+  5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003@17003 slave 0bfe11ed5ac5dd18d975644dad819aafaa983521 0 1652277791121 3 connected
+  ```
+
+#### 集群状态说明 以及 节点操作
+
++ 主节点
+
+  + 只有主节点存在 hash slots, 且每个主节点的 hash slots 没有交叉
+  + 主节点不能删除
+  + 一个主节点可有多个从节点
+  + 主节点宕机时, 在从节点之间投票选举主节点
+
++ 从节点
+
+  + 从节点没有 hash slots
+  + 从节点可被删除
+  + 从节点不负责数据的写, 仅读数据和同步数据
+
++ 添加主节点
+
+  + `redis-cli --cluster add-node 需要添加的节点 集群中的任意节点`
+
+    > 集群中的任意节点 是用来确认加入的集群
+    >
+    > **新加入的节点默认为 master 且没有的分配 slots**
+
+  + `redis-cli --cluster reshard 集群中的任意节点`
+
+  ```bash
+  redis-cli --cluster add-node 192.168.8.2:7006 192.168.8.10:7000
+  >>> Adding node 192.168.8.2:7006 to cluster 192.168.8.10:7000
+  >>> Performing Cluster Check (using node 192.168.8.10:7000)
+  S: f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000
+     slots: (0 slots) slave
+     replicates ec750f20cda56f4453cf36b16b9f3b25a6b0c5df
+  M: 0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002
+     slots:[10923-16383] (5461 slots) master
+     1 additional replica(s)
+  M: ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004
+     slots:[0-5460] (5461 slots) master
+     1 additional replica(s)
+  S: 5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003
+     slots: (0 slots) slave
+     replicates 0bfe11ed5ac5dd18d975644dad819aafaa983521
+  M: fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001
+     slots:[5461-10922] (5462 slots) master
+     1 additional replica(s)
+  S: b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005
+     slots: (0 slots) slave
+     replicates fc00d90cade9a65ba0901668c919839d5a7d0f2b
+  [OK] All nodes agree about slots configuration.
+  >>> Check for open slots...
+  >>> Check slots coverage...
+  [OK] All 16384 slots covered.
+  >>> Getting functions from cluster
+  >>> Failed retrieving Functions from the cluster, skip this step as Redis version do not support function command (error = 'ERR unknown command `FUNCTION`, with args beginning with: `DUMP`, ')
+  >>> Send CLUSTER MEET to node 192.168.8.2:7006 to make it join the cluster.
+  [OK] New node added correctly.
+  
+  # 当前集群信息(截取)
+  2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006@17006 master - 0 1652278680533 0 connected # 没有分配 slots
+  
+  # 需要使用 为 master 分配 slots
+  redis-cli --cluster reshard 192.168.8.2:7006
+  >>> Performing Cluster Check (using node 192.168.8.2:7006)
+  M: 2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006
+     slots: (0 slots) master
+  S: f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000
+     slots: (0 slots) slave
+     replicates ec750f20cda56f4453cf36b16b9f3b25a6b0c5df
+  S: b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005
+     slots: (0 slots) slave
+     replicates fc00d90cade9a65ba0901668c919839d5a7d0f2b
+  S: 5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003
+     slots: (0 slots) slave
+     replicates 0bfe11ed5ac5dd18d975644dad819aafaa983521
+  M: fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001
+     slots:[5461-10922] (5462 slots) master
+     1 additional replica(s)
+  M: ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004
+     slots:[0-5460] (5461 slots) master
+     1 additional replica(s)
+  M: 0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002
+     slots:[10923-16383] (5461 slots) master
+     1 additional replica(s)
+  [OK] All nodes agree about slots configuration.
+  >>> Check for open slots...
+  >>> Check slots coverage...
+  [OK] All 16384 slots covered.
+  How many slots do you want to move (from 1 to 16384)? 40 # 移动多少个 slots
+  What is the receiving node ID? 2e910adc25987256390083402f27941cfa09ffa5 # 接收 slots 的 master id
+  Please enter all the source node IDs.
+    Type 'all' to use all the nodes as source nodes for the hash slots.
+    Type 'done' once you entered all the source nodes IDs.
+  Source node #1: all # 输入 从哪些 master 中移动 slots 
+  # all 即从所有 master 中均分出 slots
+  # done 执行(前提是已经输入了 master id 且不是输入 all)
+  
+  Ready to move 40 slots.
+    Source nodes:
+      M: fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001
+         slots:[5461-10922] (5462 slots) master
+         1 additional replica(s)
+      M: ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004
+         slots:[0-5460] (5461 slots) master
+         1 additional replica(s)
+      M: 0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002
+         slots:[10923-16383] (5461 slots) master
+         1 additional replica(s)
+    Destination node:
+      M: 2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006
+         slots: (0 slots) master
+    Resharding plan:
+      Moving slot 5461 from fc00d90cade9a65ba0901668c919839d5a7d0f2b
+  	... # 计划 从其他 master 移动 slots 到指定固定 master
+      Moving slot 10935 from 0bfe11ed5ac5dd18d975644dad819aafaa983521
+  Do you want to proceed with the proposed reshard plan (yes/no)? yes # 确认是否执行分配计划
+  Moving slot 5461 from 192.168.8.11:7001 to 192.168.8.2:7006:
+  ... # 显示执行的 slots 移动的地址转换
+  Moving slot 10935 from 192.168.8.12:7002 to 192.168.8.2:7006:
+  
+  # 节点状态
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 myself,master - 0 1652278971000 3 connected 10936-16383
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652278972110 2 connected 5475-10922
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 master - 0 1652278972311 7 connected 13-5460
+  2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006@17006 master - 0 1652278970504 8 connected 0-12 5461-5474 10923-10935
+  ```
+
++ 添加从节点
+
+  + `redis-cli --cluster add-node 需要添加的节点 集群中的任意节点`
+  + 进入 需要变为从节点的 client 执行 `cluster replicate 目标master-id`
+
+  ```bash
+  # 执行添加节点
+  redis-cli --cluster add-node 192.168.8.2:7006 192.168.8.10:7000
+  ...
+  # 查看节点信息
+  192.168.8.12:7002> cluster nodes
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 myself,master - 0 1652280116000 9 connected 0-12 5461-5474 10923-16383
+  b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005@17005 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652280116560 2 connected
+  f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000@17000 slave ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 0 1652280116000 7 connected
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652280116358 2 connected 5475-10922
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 master - 0 1652280116057 7 connected 13-5460
+  2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006@17006 master - 0 1652280116000 8 connected # 添加进入的新节点 默认为 没有 slots 的 master
+  5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003@17003 slave 0bfe11ed5ac5dd18d975644dad819aafaa983521 0 1652280116000 9 connected
+  # 进入 新节点 的 client 执行 成为某个 master 的从节点
+  redis-cli -c -p 7006
+  127.0.0.1:7006> ping
+  PONG
+  127.0.0.1:7006> cluster replicate fc00d90cade9a65ba0901668c919839d5a7d0f2b
+  OK
+  # 查看节点信息
+  192.168.8.12:7002> cluster nodes
+  0bfe11ed5ac5dd18d975644dad819aafaa983521 192.168.8.12:7002@17002 myself,master - 0 1652280171000 9 connected 0-12 5461-5474 10923-16383
+  b597b99aac685f849df85cd075af91baf9097aa6 192.168.8.15:7005@17005 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652280171608 2 connected
+  f5f2e5452aac3fdfde349ddbdeb49b37766e4957 192.168.8.10:7000@17000 slave ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 0 1652280172613 7 connected
+  fc00d90cade9a65ba0901668c919839d5a7d0f2b 192.168.8.11:7001@17001 master - 0 1652280172613 2 connected 5475-10922
+  ec750f20cda56f4453cf36b16b9f3b25a6b0c5df 192.168.8.14:7004@17004 master - 0 1652280172512 7 connected 13-5460
+  2e910adc25987256390083402f27941cfa09ffa5 192.168.8.2:7006@17006 slave fc00d90cade9a65ba0901668c919839d5a7d0f2b 0 1652280171507 2 connected # 已经成为了 master 7001 的从节点
+  5c72b9067ad554aadf2efff6638220951ee1c7af 192.168.8.13:7003@17003 slave 0bfe11ed5ac5dd18d975644dad819aafaa983521 0 1652280172512 9 connected
+  ```
+
++ 删除节点: `redis-cli --cluster del-node [IP:port] 节点id`
+
+  + 主节点 
+
+    > **删除前需要将 slots 移动到其他 master 上**, 且需要确认 slots 已经全部移动到其他 master 上后才能删除
+
+  ```bash
+  redis-cli --cluster del-node 192.168.8.2:7006 2e910adc25987256390083402f27941cfa09ffa5
+  >>> Removing node 2e910adc25987256390083402f27941cfa09ffa5 from cluster 192.168.8.2:7006
+  >>> Sending CLUSTER FORGET messages to the cluster...
+  >>> Sending CLUSTER RESET SOFT to the deleted node.
+  ```
+
+  + 从节点直接删除即可
+
++ 集群在线分片
+
+  + `redis-cli --cluster reshard 集群中的任意节点`
+
+### SpringBoot 连接 Redis 集群 <a id="SpringBootRedis"></a>
+
++ 配置文件
+
+  ```yaml
+  spring:
+    redis:
+      cluster: # 建议全部写上(防止只写一个节点时正好节点宕机导致SpringBoot连接不上Redis集群)
+        nodes:
+          - 127.0.0.1:7000
+          - 127.0.0.1:7001
+          - 127.0.0.1:7002
+          - 127.0.0.1:7003
+          - 127.0.0.1:7004
+          - 127.0.0.1:7005
+  ```
+
+  > WSL2 docker 部署 需要在 宿主机(Windows) 上添加路由: 
+  >
+  > ```powershell
+  > PS C:\Users\17130> route -p add 192.168.8.0 MASK 255.255.255.0 172.29.170.84
+  >  操作完成!
+  > PS C:\Users\17130> route print -4
+  > ===========================================================================
+  > 接口列表
+  > ...
+  > ===========================================================================
+  > 
+  > IPv4 路由表
+  > ===========================================================================
+  > 活动路由:
+  > 网络目标        网络掩码          网关       接口   跃点数
+  > ...
+  > ===========================================================================
+  > 永久路由:
+  >   网络地址          网络掩码  网关地址  跃点数
+  >       192.168.8.0    255.255.255.0    172.29.170.84       1 # 添加的 路由信息
+  > ===========================================================================
+  > ```
+  >
+  > 将 docker 内分配给 redis 节点的 ip 路由到 WSL 子系统上(或者 127.0.0.1: 宿主机可以通过本机地址访问 WSL)
+  >
+  > 原因: SpringBoot 通过 指定WSL子系统的IP连接上, 但是 Redis 返回的是 Redis 自己识别的. 即Docker 分配的IP, 但是宿主机不能解析WSL内Docker的IP, 因此将体现为连接超时.
 
 ## Redis 缓存穿透和雪崩<a id="cache"></a>
 
@@ -2767,7 +3388,7 @@ SENTINEL SET <name> <option> <value> # 修改 Sentinel 的配置文件 (一次�
       1. 存储空值, 内存需求增大
       2. 由于有过期时间, 这将导致**缓存中的数据**和**数据库中的数据**有一段时间不一致, 对数据一致性要求高的业务有一定影响
   
-+ **缓存击穿**: 一个非常热点的 key 一直扛着高并发的压力; 在该 key 失效的一瞬间, 持续的高并发请求穿破缓存, 直接访问数据库.
++ **缓存击穿**: 一个非常热点的 key 一直扛着高并发的压力; 在该 key 失效的一瞬间, 持续的高并发请求穿破缓存, 直接访问数据库.<a id="cacheBlock"></a>
 
   > 数据库的瞬间压力过大, 若数据库未能顶住压力, 将导致服务宕机
   >
@@ -2803,17 +3424,25 @@ SENTINEL SET <name> <option> <value> # 修改 Sentinel 的配置文件 (一次�
 
 ### 缓存击穿 热key问题, 与数据库的一致性, 一致性哈希, 5种底层数据结构...
 
-+ 
++ <a href="#cacheBlock">缓存击穿</a>
++ <a href="#hash">一致性哈希</a>
 
 ## Redis Session 管理
 
 + MSM: Memcached Session Manager
 
+  > 通过 Memecached 整合到网络服务器 Tomcat 上实现
+  >
+  > 但是 Memecached 和 Tomcat 的兼容性较差(响应慢)
+
   + 整合在 Tomcat 等网络服务器上(以 Tomcat 为例)
-    1. tomcat lib 目录引入 Memcahced 依赖
+    1. tomcat lib 目录引入 Memcahced 整合 jar 包
     2. tomcat conf context.xml 配置 tomcat 整合 Memcached
+    
   + 原理
-    + 将部署在 tomcat 上的所有应用的 Session 管理交由 Memcached 管理(Memcached 存储 Session, 需要时 Tomcat 从 Memcached 中复制 Session)
+    + 将部署在 Tomcat 上的**所有应用**的 Session 管理交由 Memcached 管理
+    
+      > Memcached 会先将 Session 数据存储在 Tomcat 服务器中, 再备份到 Memcached 内. 当 Tomcat 寻找指定的 Session 时, 没找到, 将从 Memcached 中复制 Session 到 Tomcat 上.
 
 + RSM: Redis Session Manager
 
@@ -2821,52 +3450,98 @@ SENTINEL SET <name> <option> <value> # 修改 Sentinel 的配置文件 (一次�
 
   + 整合在某个应用上(使用 Spring 框架构建的应用)
 
-    > 不用再 Tomcat 上全局配置 Redis Session 管理.
+    > 不用在 Tomcat 上全局配置 Redis Session 管理.
 
   + 原理
 
-    + Spring 应用的 Session 管理交由 Redis 管理(Redis 存储 Spring 应用的 Session, Spring 应用需要时, 就从 Redis 中获取 Session)
+    + Spring 应用的 Session 管理交由 Redis 管理
 
-      > 此时的应用服务器中没有 Session 保存
+      > Redis 存储 Spring 应用的 Session, Spring 应用需要时, 就从 Redis 中获取 Session
+      
+      > 此时的应用服务器中没有该应用的 Session 保存, 其他没有使用 Spring 开发的应用仍将 Session 存储在服务器上.
 
-+ Spring 项目使用 Redis Session 管理
+### Spring 项目使用 Redis Session 管理<a id="distribution"></a>
 
-  1. 引依赖
+1. 引依赖
 
-     > 之前需要引入 `org.springframework.boot:spring-boot-starter-data-redis` 依赖
+   > 之前需要引入 `org.springframework.boot:spring-boot-starter-data-redis` 依赖
 
-     `org.springframework.session:spring-session-data-redis`
+   `org.springframework.session:spring-session-data-redis`
 
-  2. 编写配置类
+2. 编写配置类
 
-     > 可写在启动类上, 需要自定义配置就自建一个配置类
+   > 可写在启动类上, 需要自定义配置就自建一个配置类
 
-     ```java
-     @Configuration
-     @EnableRedisHttpSession // 主要是这个注解, 将整个应用的使用 Session 的数据全部交由 Redis 管理
-     public class RedisSessionManager{
-         // 可不写内容
-     }
-     ```
+   ```java
+   @Configuration
+   @EnableRedisHttpSession // 主要是这个注解, 将整个应用的使用 Session 的数据全部交由 Redis 管理
+   public class RedisSessionManager{
+       // 可不写内容
+   }
+   ```
 
-  3. 编写测试代码 HttpServletRequest & HttpServletResponse
+3. 编写测试代码 HttpServletRequest & HttpServletResponse
 
-     > Session 的所有内容都存入 Redis
+   > Session 的所有内容都存入 Redis
 
-     + 获得 session 
+   + 获得 session 
 
-       `request.getSession().getAttribute(key-String); // 需要强转` 
+     `request.getSession().getAttribute(key-String); // 需要强转` 
 
-       > 仅仅是从 jvm | redis 中获取 Session
-       >
-       > 若 jvm | redis 中没有 Session, 则返回为 null
+     > 仅仅是从 jvm | redis 中获取 Session
+     >
+     > 若 jvm | redis 中没有 Session, 则返回为 null
 
-     + 往 session 中添加属性
+   + 往 session 中添加属性
 
-       `request.getSession().setAttribute(key-String, value-Object)` 
+     `request.getSession().setAttribute(key-String, value-Object)` 
 
-       > 每次往 value-Object 对象中添加都要 setAttribute 或 设置多个值后统一 setAttribute
-       >
-       > 修改了 value 不 setattribute , 将无法把设置的值同步到 jvm | redis 中存储的 session 中
+     > 每次往 value-Object 对象中添加都要 setAttribute 或 设置多个值后统一 setAttribute
+     >
+     > 修改了 value 不 setAttribute , 将无法把设置的值同步到 jvm | redis 中存储的 session 中
 
-       > Redis 存储的 Session, 每存储一遍, Session 的过期时间都将重设一遍(一般是 30min)
+     > Redis 存储的 Session 都有过期时间, 每存储一遍, Session 的过期时间都将重设一遍(一般是 30min)
+     >
+     > 每存一个 Session 都将存储 3 个 Key-Value
+     
+   + 使 Session 失效
+   
+     `request.getSession().invalidate();`
+
+##### 拓
+
++ 部署到 Tomcat 上(不使用 内嵌的 Tomcat)
+
+  > 将项目打包(war 包: pom.xml 中使用 `<package>` 指定)
+  >
+  > 注: 使用 war 包部署, 配置文件中的 server.port & server.servlet.context-path 将失效
+
+  + 排除 SpringBoot 内嵌的 Tomcat
+
+      ```xml
+      <dependency>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-starter-tomcat</artifactId>
+          <scope>provided</scope>
+      </dependency>
+      ```
+
+      > 部署在 Tomcat 上就需要将内嵌的 Tomcat 排除
+
+  + 启动类 继承 `SpringBootServletInitalizer` 并重写 `protected SpringApplicationBuilder configure(SpringApplicationBuilder builder);` 方法
+
+      ```java
+      @SpringBootApplication
+      public class Application extends SpringBootServletInitalizer {
+          public static void main(String[] args) {
+              SpringApplication.run(Application.class, args);
+          }
+          
+          @Override
+          protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+              return builder.sources(Application.class);
+          }
+      }
+      ```
+
+  + maven **clean** 后 package

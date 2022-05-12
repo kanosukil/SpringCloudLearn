@@ -43,4 +43,10 @@ public class UserServiceImpl implements UserService {
     public int updateByName(User user) {
         return userDao.updateByName(user);
     }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<User> getByName(String name) {
+        return userDao.getByName(name);
+    }
 }

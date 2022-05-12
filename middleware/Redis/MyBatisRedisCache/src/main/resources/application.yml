@@ -5,17 +5,36 @@ server:
 spring:
   application:
     name: RedisCache
-  redis:
-    host: 172.29.170.84
-    port: 6379
-    database: 0
-    password: 13131CAHlhb
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/rediscache?characterEncoding=UTF-8
     username: vhbin
     password: 13131CAHlhb
+    #  redis:
+    #    host: 127.0.0.1 # 单节点
+    #    port: 7000
+    #    database: 0
+    #    password: 13131CAHlhb
+    #    sentinel: # sentinel
+    #      master: mymaster
+    #      nodes:
+    #        - 172.29.170.84:6388
+    #        - 172.29.170.84:6387
+    #        - 172.29.170.84:6386
+    #        - 172.29.170.84:6385
+    #        - 172.29.170.84:6384
+  redis:
+    timeout: 10000
+    database: 0
+    cluster: # 建议全部写上(防止只写一个节点时正好节点宕机导致 SpringBoot 连接不上 Redis 集群)
+      nodes:
+        - 172.29.170.84:7000
+        - 172.29.170.84:7001
+        - 172.29.170.84:7002
+        - 172.29.170.84:7003
+        - 172.29.170.84:7004
+        - 172.29.170.84:7005
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.learn.redis.entity

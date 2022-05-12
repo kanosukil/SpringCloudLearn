@@ -18,4 +18,6 @@ public interface UserDao {
     int delete(String name);
 
     int updateByName(User user);
+
+    List<User> getByName(String name);
 }

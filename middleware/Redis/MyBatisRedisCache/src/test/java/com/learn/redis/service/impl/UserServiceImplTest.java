@@ -38,6 +38,16 @@ class UserServiceImplTest {
 
     @Test
     void update() {
-        service.updateByName(new User("VHBin", 22, "Dog"));
+        log.info("Res: {}", service.updateByName(new User("VHBin", 22, "Dog")));
+    }
+
+    @Test
+    void getByName() {
+        service.getByName("VHBin").forEach(u -> log.info("User: {}, info: {}, {}",
+                u.getName(), u.getAge(), u.getJob()));
+        System.out.println("====================================================================================");
+        service.getByName("Kano").forEach(u -> log.info("User: {}", u));
+        System.out.println("====================================================================================");
+        service.getByName("VHBin").forEach(u -> log.info("User: {}", u));
     }
 }
