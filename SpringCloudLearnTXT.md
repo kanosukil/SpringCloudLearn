@@ -8,7 +8,7 @@
     - 负载均衡调用组件(解决集群部署) <br>
     - 服务熔断组件(解决服务调用链路中某个不可用\访问时间过长) <br>
     - 配置管理组件(同步配置) <br>
-    - 服务网关组件(与前端通信 转发前端请求 | **集群处理** : Niginx处理网关的负载均衡) <br>
+    - 服务网关组件(与前端通信 转发前端请求 | **集群处理** : Nigix处理网关的负载均衡) <br>
     - 消息总线(配置自动刷新) <br>
 
 `每个组件都是不同的项目`<br>
@@ -68,16 +68,21 @@
     - 作用: 解决分布式系统的问题,帮助开发者专注于业务开发
     + 组件:
         1. 服务注册中心: 服务健康状态以及元数据存储
+            
             > Server;Client(每个微服务)
         2. OpenFeign: 服务间通信(整合 RestTemplate)
+            
             > 每个微服务之间通信
         3. Hystrix: 服务熔断(解决服务雪崩)
+            
             > 服务链路
         4. 网关(Gateway): 路由、转发、过滤
+            
             > 前端请求 -> 断言:predicate -> 过滤:filter -> 后台服务
         5. 统一配置中心(Config): 远端仓库统一管理微服务的配置文件
             > Server;Client(每个微服务) 远端仓库存储配置文件
-            >> MQ: Bus 消息总线组件的消息中间件 Message Queue
+            >
+            > > MQ: Bus 消息总线组件的消息中间件 Message Queue
 # SpringCloud Alibaba
 - **Ailbaba 团队**提供微服务工具集
 - 包含开发分布式系统的所有组件
@@ -89,7 +94,7 @@
     - 消息驱动 (异步处理)
     - 分布式事务 ==> Seata
     - Dubbo RPC 集成 服务间通信
-> + 实战开发: SpringCloud Netflix + SpringCloud Spring + Spring Alibaba (一个例子)
+> + 实战开发: SpringCloud Netflix + SpringCloud Spring + Spring Cloud Alibaba (一个例子)
 >   - 服务注册中心: Nacos
 >   - 服务间通信: OpenFeign / RestTemplate+Ribbon
 >   - 服务流量控制和服务降级: Sentinel
@@ -141,18 +146,24 @@
 1. [*Spring 官网*](https://spring.io/)
 2. [*SpringCloud 页面*](https://spring.io/projects/spring-cloud)
 3. [*SpringCloud Alibaba 页面*](https://spring.io/projects/spring-cloud-alibaba)
+    
     > [SpringCloud Alibaba 文档](https://spring-cloud-alibaba-group.github.io/github-pages/2021/en-us/index.html)
 4. [*Nacos 文档*](https://nacos.io/zh-cn/docs/quick-start.html)
+    
     > [Github 项目](https://github.com/alibaba/nacos)
 5. [*Sentinel 文档*](https://sentinelguard.io/zh-cn/docs/quick-start.html)
+    
     > [Github 项目](https://github.com/alibaba/Sentinel)
 6. [RabbitMQ](https://www.rabbitmq.com/) : 消息总线
     > [前提条件语言 Erlang](https://www.erlang.org/downloads)以及 [RabbitMQ Github项目](https://github.com/rabbitmq/rabbitmq-server) <br>
     > [入门学习](https://developer.aliyun.com/article/769883#slide-8)及其[Github](https://github.com/yehongzhi/mall)
 7. [Nginx](https://nginx.org/en/download.html) : 代理服务器/负载均衡
+    
     > [Windows 下安装 Nginx 及其配置](https://cloud.tencent.com/developer/article/1333800)
 8. [Consul](https://www.consul.io/downloads) : 服务注册中心
+    
     > [入门学习](https://cloud.tencent.com/developer/article/1444664)
 9. [JMeter](https://jmeter.apache.org/) : 负载测试
+    
     > [入门学习](https://cloud.tencent.com/developer/article/1633626)
 10. [Natapp](https://natapp.cn/) : 内网穿透

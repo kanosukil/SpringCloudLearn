@@ -2193,7 +2193,7 @@ Reading messages... (press Ctrl-C to quit)
 
 ## Redis 哨兵机制
 
-### 主从赋值
+### 主从复制
 
 > 主从复制: 主节点(master|leader) & 从节点(slave|follower)
 >
