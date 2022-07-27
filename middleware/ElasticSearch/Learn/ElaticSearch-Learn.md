@@ -675,7 +675,7 @@
 
   > 返回: 
 
-  ```
+  ```shell
   health status index                                     uuid                   pri rep docs.count docs.deleted store.size pri.store.size
   green  open   metrics-endpoint.metadata_current_default SkFU97-uS7aBxh1TNPBBNA   1   0          0            0       225b           225b
   yellow open   test2                                     8HFHsTSeSV6GJHtWi0PqfA   1   1          0            0       225b           225b

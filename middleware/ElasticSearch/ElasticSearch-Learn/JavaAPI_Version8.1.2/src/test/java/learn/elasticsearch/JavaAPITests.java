@@ -15,6 +15,7 @@ import co.elastic.clients.json.JsonData;
 import co.elastic.clients.transport.endpoints.BooleanResponse;
 import co.elastic.clients.util.ApiTypeHelper;
 import learn.elasticsearch.entity.Person;
+import learn.elasticsearch.entity.PersonDTO;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,7 +141,7 @@ public class JavaAPITests {
     // 删除索引
     @Test
     void indexDeleteTest() throws IOException {
-        DeleteIndexResponse res = e_client.indices().delete(d -> d.index("test2"));
+        DeleteIndexResponse res = e_client.indices().delete(d -> d.index("test4"));
         logger.info("Acknowledged: {}", res.acknowledged());
         // 没找到将报错: ElasticsearchException: [es/indices.delete] failed: [index_not_found_exception] no such index [...]
     }
@@ -155,7 +156,7 @@ public class JavaAPITests {
     // 判断索引是否存在
     @Test
     void indexExistsTest() throws IOException {
-        BooleanResponse res = e_client.indices().exists(e -> e.index("test1"));
+        BooleanResponse res = e_client.indices().exists(e -> e.index("test2"));
         logger.info("Res: {}", res.value());
 
     }
@@ -165,8 +166,12 @@ public class JavaAPITests {
     @Test
     void documentCreateTest() throws IOException {
         IndexResponse res = e_client.index(e ->
-                e.index("test1").id("1020").document(new Person("洋洋", 22, "student")));
+//                e.index("test2").id("1020").document(new Person("洋洋", 22, "student")));
+                e.index("test2")
+                        .id("123")
+                        .document(new PersonDTO(new Person("洋洋", 22, "student").toString())));
         logger.info("Res: {}", res.result().jsonValue());
+        logger.info("{}", res.result().toString());
         // 批量插入: 利用 bulk
         /*
         List<FileSearch> fileSearchList = new ArrayList<>();
@@ -179,6 +184,56 @@ public class JavaAPITests {
         BulkResponse bulkResponse = client.bulk(b -> b.index("filesearch")
                 .operations(bulkOperationArrayList));
          */
+
+//        List<BulkOperation> bulkOperationArrayList = new ArrayList<>();
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("13")
+//                                        .document(new Person("13", 13, "13")))));
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("12")
+//                                        .document(new Person("12", 12, "12")))));
+//        bulkOperationArrayList.add
+//                (BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("11")
+//                                        .document(new Person("11", 11, "11")))));
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("10")
+//                                        .document(new Person("10", 10, "10")))));
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("9")
+//                                        .document(new Person("9", 9, "9")))));
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("8")
+//                                        .document(new Person("8", 8, "8")))));
+//        bulkOperationArrayList.add(
+//                BulkOperation.of(
+//                        _1 -> _1.index(
+//                                _2 -> _2.id("7")
+//                                        .document(new Person("7", 7, "7")))));
+//        BulkResponse bulkResponse = e_client.bulk(b -> b.index("test2")
+//                .operations(bulkOperationArrayList));
+//        logger.info("{}", bulkResponse.toString());
+//        logger.info("{}", bulkResponse.errors());
+//        logger.info("{}", bulkResponse.ingestTook());
+//        for (BulkResponseItem item : bulkResponse.items()) {
+//
+//            logger.info("{}", item.id());
+//            logger.info("{}", item.index());
+//            logger.info("{}", item.result());
+//            logger.info("{}", item.operationType());
+//            logger.info("-----------------------------------");
+//        }
     }
 
     // 更新文档 (全局更新)
@@ -187,11 +242,13 @@ public class JavaAPITests {
     @Test
     void documentUpdateTest() throws IOException {
         UpdateResponse<Person> res = e_client.update(e ->
-                        e.index("test1")
-                                .id("1020")
+                        e.index("test2")
+                                .id("13")
                                 .doc(new Person("小洋人", 23, "Idol")),
                 Person.class);
         logger.info("Res: {}", res.result().jsonValue());
+        logger.info("{}", res.get());
+        logger.info("{}", res);
     }
 
     // 删除文档
@@ -199,8 +256,8 @@ public class JavaAPITests {
     @Test
     void documentDeleteTest() throws IOException {
         DeleteResponse res = e_client.delete(e
-                -> e.index("test1")
-                .id("1020"));
+                -> e.index("test2")
+                .id("12"));
         logger.info("Res: {}", res.result().jsonValue());
     }
 
@@ -208,8 +265,11 @@ public class JavaAPITests {
     // GET /索引/_doc/{id}
     @Test
     void documentSearchIDTest() throws IOException {
-        GetResponse<Person> res = e_client.get(e -> e.index("test1").id("1001"), Person.class);
+        GetResponse<Person> res = e_client.get(e -> e.index("test2").id("11"), Person.class);
         logger.info("Res: {}", res.source());
+        logger.info("{}", res.found());
+        logger.info("{}", res.routing());
+        logger.info("{}", res.toString());
     }
 
     // 索引主要 op
