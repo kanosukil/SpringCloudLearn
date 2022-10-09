@@ -1,6 +1,12 @@
 server:
   port: 8081
 spring:
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
   application:
     name: MessageSender
   cloud:
@@ -8,16 +14,16 @@ spring:
       binders:
         MS:
           type: rabbit
-          environment:
-            spring:
-              rabbitmq:
-                address: localhost:5672
-                username: guest
-                password: guest
-                virtual-host: /
       bindings:
         output:
-          destination: rabbit_output
+          destination: rabbit
           default-binder: MS
-          group: message_out
+          group: message
+#      bindings:
+        msg-out-0:
+          destination: testExchange
+#          content-type: application/json
+          group: test_new
+    function:
+      definition: msg
 

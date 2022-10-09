@@ -47,6 +47,7 @@
     - Config (Bus)
 
 ### [服务注册中心](MarkDown/服务注册中心.md) (Eureka & Consul)
+
 ### [微服务之间的通信](MarkDown/微服务通信.md) (Ribbon + RestTemplate & OpenFeign)
 
 ### [服务熔断](MarkDown/服务熔断.md) (Hystrix)

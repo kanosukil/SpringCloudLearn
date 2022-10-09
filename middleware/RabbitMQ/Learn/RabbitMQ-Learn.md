@@ -1,4 +1,4 @@
-# RabbitMQ
+#  RabbitMQ
 
 ## MQ
 
@@ -712,7 +712,7 @@
                     virtual-host: / # 虚拟主机
           bindings: # binding 集合 使用了多个交换机则有多个 binding
             testOutPut: # binding 的名字
-              destination: testRabbit # 指向的 exchange (上面的 binder 下的)
+              destination: testRabbit # 指向的 exchange (rabbitmq z)
               content-type: application/json # 可选
               default-binder: test # 指定默认 binder
               binder: test # 指定 binder
@@ -901,3 +901,129 @@
         }
     }
     ```
+
+## Spring Cloud Stream Rabbit 使用 3.1.x 开始
+
+> 参考: [Spring Cloud Stream Rabbit 3.2.1版本入门实践](https://blog.csdn.net/weixin_43834401/article/details/122269503?spm=1001.2101.3001.6650.2&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-2-122269503-blog-124040255.pc_relevant_3mothn_strategy_recovery&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-2-122269503-blog-124040255.pc_relevant_3mothn_strategy_recovery&utm_relevant_index=3)
+
++ 生产者:
+
+  yml:
+
+  ```yml
+  server:
+    port: 8081
+  spring:
+    rabbitmq:
+      host: 127.0.0.1
+      port: 5672
+      username: guest
+      password: guest
+      virtual-host: /
+    application:
+      name: MessageSender
+    cloud:
+      stream:
+        binders:
+          MS:
+            type: rabbit
+        bindings:
+          output:
+            destination: rabbit
+            default-binder: MS
+            group: message
+          msg-out-0:
+            destination: testExchange # exchange
+  #          content-type: application/json
+            group: test_new # queue
+  ```
+
+  > 生产者可以 binding 多个 exchange, 并分 exchange 进行消息入队
+
+  生产者类:
+
+  ```java
+  @Component
+  public class NewMessageProducer {
+      private static final Logger logger = LoggerFactory.getLogger(NewMessageProducer.class);
+      @Resource
+      private StreamBridge streamBridge;
+  
+      public boolean msg(String msg) {
+          try {
+              MessageHeaders header = new MessageHeaders(new HashMap<>(1, 1f) {{
+                  put("content-type", "UTF-8");
+              }});
+              // streamBridge 可以只传 Object, 不必要使用 Message
+              if (streamBridge.send("msg-out-0",
+                      MessageBuilder.createMessage(new ObjectMapper().writeValueAsString(msg), header))) {
+                  logger.info("Message Sent Successfully!");
+                  return true;
+              } else {
+                  logger.warn("Message Sent Fail!");
+                  return false;
+              }
+          } catch (JsonProcessingException json) {
+              logger.warn("Message Sent Exception", json);
+              return false;
+          }
+      }
+  }
+  ```
+
++ 消费者:
+
+  yml:
+
+  ```yml
+  server:
+    port: 8082
+  spring:
+    rabbitmq:
+      host: 127.0.0.1
+      port: 5672
+      username: guest
+      password: guest
+      virtual-host: /
+    application:
+      name: MessageReceiver
+    cloud:
+      function:
+        definition: msg
+      stream:
+        binders:
+          MS:
+            type: rabbit
+        bindings:
+          input:
+            destination: rabbit
+            default-binder: MS
+            group: message
+            consumer:
+              concurrency: 1
+          msg-in-0:
+            destination: testExchange
+  #          content-type: application/json
+            group: test_new
+  
+  ```
+
+  > 消费者只能连接一个 bindings, 写多个只使用项目里写的(项目里多个 StreamListen 覆盖新的 @Bean, 导致 @Bean 无法连接到指定 Exchange)
+
+  消费者类
+
+  ```java
+  @Component
+  public class NewMessageConsumer {
+      private static final Logger logger = LoggerFactory.getLogger(NewMessageConsumer.class);
+      @Bean
+      public Consumer<Flux<Message<String>>> msg() {
+          return flux -> flux.map(message -> {
+              logger.info("Message: {}", message);
+              return message;
+          }).subscribe();
+      }
+  }
+  ```
+
+  

@@ -1,33 +1,30 @@
 server:
   port: 8082
 spring:
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
   application:
     name: MessageReceiver
   cloud:
+    function:
+      definition: msg
     stream:
       binders:
         MS:
           type: rabbit
-          environment:
-            spring:
-              rabbitmq:
-                address: localhost:5672
-                username: guest
-                password: guest
-                virtual-host: /
       bindings:
         input:
-          destination: rabbit_output
+          destination: rabbit
           default-binder: MS
-          group: message_out
+          group: message
           consumer:
             concurrency: 1
-      rabbit:
-        bindings:
-          input:
-            consumer:
-              requeue-rejected: false
-              acknowledge-mode: MANUAL
-              recovery-interval: 3000
-              durable-subscription: true
-              max-concurrency: 5
+#      bindings:
+        msg-in-0:
+          destination: testExchange
+#          content-type: application/json
+          group: test_new
